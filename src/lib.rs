@@ -109,9 +109,30 @@ fn get_package_config(
   Ok(package_config)
 }
 
+fn file_extension_probe(mut p: PathBuf) -> anyhow::Result<PathBuf> {
+  if p.exists() {
+    return Ok(p);
+  } else {
+    p.set_extension("js");
+    if p.exists() {
+      return Ok(p);
+    } else {
+      return Err(not_found());
+    }
+  }
+}
+
 fn node_resolve(specifier: &str, referrer: &Path) -> anyhow::Result<PathBuf> {
-  if specifier.starts_with("./") || specifier.starts_with("../") {
+  if specifier.starts_with("/") {
     todo!();
+  }
+
+  if specifier.starts_with("./") || specifier.starts_with("../") {
+    if let Some(parent) = referrer.parent() {
+      return Ok(file_extension_probe(parent.join(specifier))?);
+    } else {
+      todo!();
+    }
   }
 
   // We've got a bare specifier or maybe bare_specifier/blah.js"
@@ -138,7 +159,7 @@ fn node_resolve(specifier: &str, referrer: &Path) -> anyhow::Result<PathBuf> {
             return Ok(d.join("index.js"));
           }
         }
-        return Ok(d);
+        return file_extension_probe(d);
       } else {
         if let Some(main) = package_config.main {
           return Ok(module_dir.join(main));
@@ -150,6 +171,10 @@ fn node_resolve(specifier: &str, referrer: &Path) -> anyhow::Result<PathBuf> {
   }
 
   Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Not found").into())
+}
+
+fn not_found() -> anyhow::Error {
+  std::io::Error::new(std::io::ErrorKind::NotFound, "Not found").into()
 }
 
 #[cfg(test)]
@@ -178,11 +203,24 @@ mod tests {
   #[test]
   fn cjs_main_reach_inside() {
     let d = testdir("cjs_main");
-    let p = node_resolve("foo/bar.js", &d.join("main.js")).unwrap();
+    let main_js = &d.join("main.js");
+
+    let p = node_resolve("foo/bar.js", main_js).unwrap();
     assert_eq!(p, d.join("node_modules/foo/bar.js"));
-    let p = node_resolve("foo/dir/cat.js", &d.join("main.js")).unwrap();
+
+    let p = node_resolve("foo/bar", main_js).unwrap();
+    assert_eq!(p, d.join("node_modules/foo/bar.js"));
+
+    let p = node_resolve("foo/dir/cat.js", main_js).unwrap();
     assert_eq!(p, d.join("node_modules/foo/dir/cat.js"));
-    let p = node_resolve("foo/dir", &d.join("main.js")).unwrap();
+
+    let p = node_resolve("foo/dir/cat", main_js).unwrap();
+    assert_eq!(p, d.join("node_modules/foo/dir/cat.js"));
+
+    let p = node_resolve("foo/dir", main_js).unwrap();
+    assert_eq!(p, d.join("node_modules/foo/dir/index.js"));
+
+    let p = node_resolve("foo/dir/", main_js).unwrap();
     assert_eq!(p, d.join("node_modules/foo/dir/index.js"));
   }
 
@@ -192,5 +230,14 @@ mod tests {
     let e = node_resolve("bar", &d.join("main.js")).unwrap_err();
     let ioerr = e.downcast_ref::<std::io::Error>().unwrap();
     assert_eq!(ioerr.kind(), std::io::ErrorKind::NotFound);
+  }
+
+  #[test]
+  fn cjs_main_sibling() {
+    let d = testdir("cjs_main");
+    let p = node_resolve("./sibling.js", &d.join("main.js")).unwrap();
+    assert_eq!(p, d.join("sibling.js"));
+    let p = node_resolve("./sibling", &d.join("main.js")).unwrap();
+    assert_eq!(p, d.join("sibling.js"));
   }
 }
