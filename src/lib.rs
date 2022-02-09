@@ -170,7 +170,7 @@ fn node_resolve(specifier: &str, referrer: &Path) -> anyhow::Result<PathBuf> {
     }
   }
 
-  Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Not found").into())
+  Err(not_found())
 }
 
 fn not_found() -> anyhow::Error {
@@ -186,17 +186,29 @@ mod tests {
     c.join("src/testdata/").join(name)
   }
 
+  fn check_node(main: &Path) {
+    let status = std::process::Command::new("node")
+      .args([main])
+      .status()
+      .unwrap();
+    assert!(status.success());
+  }
+
   #[test]
   fn cjs_no_main() {
     let d = testdir("cjs_no_main");
-    let p = node_resolve("foo", &d.join("main.js")).unwrap();
+    let main_js = &d.join("main.js");
+    check_node(main_js);
+    let p = node_resolve("foo", main_js).unwrap();
     assert_eq!(p, d.join("node_modules/foo/index.js"));
   }
 
   #[test]
-  fn cjs_main() {
+  fn cjs_main_basic() {
     let d = testdir("cjs_main");
-    let p = node_resolve("foo", &d.join("main.js")).unwrap();
+    let main_js = &d.join("main.js");
+    check_node(main_js);
+    let p = node_resolve("foo", &main_js).unwrap();
     assert_eq!(p, d.join("node_modules/foo/main.js"));
   }
 
@@ -204,6 +216,7 @@ mod tests {
   fn cjs_main_reach_inside() {
     let d = testdir("cjs_main");
     let main_js = &d.join("main.js");
+    check_node(main_js);
 
     let p = node_resolve("foo/bar.js", main_js).unwrap();
     assert_eq!(p, d.join("node_modules/foo/bar.js"));
@@ -227,7 +240,9 @@ mod tests {
   #[test]
   fn cjs_main_not_found() {
     let d = testdir("cjs_main");
-    let e = node_resolve("bar", &d.join("main.js")).unwrap_err();
+    let main_js = &d.join("main.js");
+    check_node(main_js);
+    let e = node_resolve("bar", main_js).unwrap_err();
     let ioerr = e.downcast_ref::<std::io::Error>().unwrap();
     assert_eq!(ioerr.kind(), std::io::ErrorKind::NotFound);
   }
@@ -235,9 +250,11 @@ mod tests {
   #[test]
   fn cjs_main_sibling() {
     let d = testdir("cjs_main");
-    let p = node_resolve("./sibling.js", &d.join("main.js")).unwrap();
+    let main_js = &d.join("main.js");
+    check_node(main_js);
+    let p = node_resolve("./sibling.js", main_js).unwrap();
     assert_eq!(p, d.join("sibling.js"));
-    let p = node_resolve("./sibling", &d.join("main.js")).unwrap();
+    let p = node_resolve("./sibling", main_js).unwrap();
     assert_eq!(p, d.join("sibling.js"));
   }
 }
