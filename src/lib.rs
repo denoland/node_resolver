@@ -132,7 +132,13 @@ fn node_resolve(specifier: &str, referrer: &Path) -> anyhow::Result<PathBuf> {
       let package_config = get_package_config(package_json_path)?;
       //println!("package_config {:?}", package_config);
       if let Some(rest) = maybe_rest {
-        return Ok(module_dir.join(rest));
+        let d = module_dir.join(rest);
+        if let Ok(m) = d.metadata() {
+          if m.is_dir() {
+            return Ok(d.join("index.js"));
+          }
+        }
+        return Ok(d);
       } else {
         if let Some(main) = package_config.main {
           return Ok(module_dir.join(main));
@@ -143,7 +149,7 @@ fn node_resolve(specifier: &str, referrer: &Path) -> anyhow::Result<PathBuf> {
     }
   }
 
-  todo!()
+  Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Not found").into())
 }
 
 #[cfg(test)]
@@ -176,5 +182,15 @@ mod tests {
     assert_eq!(p, d.join("node_modules/foo/bar.js"));
     let p = node_resolve("foo/dir/cat.js", &d.join("main.js")).unwrap();
     assert_eq!(p, d.join("node_modules/foo/dir/cat.js"));
+    let p = node_resolve("foo/dir", &d.join("main.js")).unwrap();
+    assert_eq!(p, d.join("node_modules/foo/dir/index.js"));
+  }
+
+  #[test]
+  fn cjs_main_not_found() {
+    let d = testdir("cjs_main");
+    let e = node_resolve("bar", &d.join("main.js")).unwrap_err();
+    let ioerr = e.downcast_ref::<std::io::Error>().unwrap();
+    assert_eq!(ioerr.kind(), std::io::ErrorKind::NotFound);
   }
 }
