@@ -152,10 +152,21 @@ fn node_resolve(specifier: &str, referrer: &Path) -> anyhow::Result<PathBuf> {
       //println!("path_json_path {:?}", package_json_path);
       let package_config = get_package_config(package_json_path)?;
 
-      println!("package_config {:#?}", package_config);
+      // println!("package_config {:#?}", package_config);
 
-      if let Some(exports) = package_config.exports {
-        todo!()
+      match package_config.exports {
+        Some(Value::String(s)) => {
+          return Ok(module_dir.join(s));
+        }
+        Some(Value::Object(_obj)) => {
+          todo!();
+        }
+        Some(_) => {
+          todo!();
+        }
+        None => {
+          // pass thru
+        }
       }
 
       // old school
@@ -266,12 +277,12 @@ mod tests {
   }
 
   #[test]
-  fn cjs_imports_exports() {
-    let d = testdir("cjs_imports_exports");
+  fn cjs_exports_string() {
+    let d = testdir("cjs_exports_string");
     let main_js = &d.join("main.js");
     check_node(main_js);
 
-    let p = node_resolve("imports_exports", main_js).unwrap();
-    assert_eq!(p, d.join("node_modules/imports_exports/require_export.cjs"));
+    let p = node_resolve("exports_string", main_js).unwrap();
+    assert_eq!(p, d.join("node_modules/exports_string/foo.js"));
   }
 }
