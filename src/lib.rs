@@ -116,18 +116,29 @@ fn node_resolve(specifier: &str, referrer: &Path) -> anyhow::Result<PathBuf> {
 
   // We've got a bare specifier or maybe bare_specifier/blah.js"
 
+  let (bare, maybe_rest) = if let Some((bare, rest)) = specifier.split_once("/")
+  {
+    (bare, Some(rest))
+  } else {
+    (specifier, None)
+  };
+
   for ancestor in referrer.ancestors() {
     println!("ancestor {:?}", ancestor);
-    let module_dir = ancestor.join("node_modules").join(specifier);
+    let module_dir = ancestor.join("node_modules").join(bare);
     let package_json_path = module_dir.join("package.json");
     if package_json_path.exists() {
-      println!("path_json_path {:?}", package_json_path);
+      //println!("path_json_path {:?}", package_json_path);
       let package_config = get_package_config(package_json_path)?;
-      println!("package_config {:?}", package_config);
-      if let Some(main) = package_config.main {
-        return Ok(module_dir.join(main));
+      //println!("package_config {:?}", package_config);
+      if let Some(rest) = maybe_rest {
+        return Ok(module_dir.join(rest));
       } else {
-        return Ok(module_dir.join("index.js"));
+        if let Some(main) = package_config.main {
+          return Ok(module_dir.join(main));
+        } else {
+          return Ok(module_dir.join("index.js"));
+        }
       }
     }
   }
@@ -156,5 +167,14 @@ mod tests {
     let d = testdir("cjs_main");
     let p = node_resolve("foo", &d.join("main.js")).unwrap();
     assert_eq!(p, d.join("node_modules/foo/main.js"));
+  }
+
+  #[test]
+  fn cjs_main_reach_inside() {
+    let d = testdir("cjs_main");
+    let p = node_resolve("foo/bar.js", &d.join("main.js")).unwrap();
+    assert_eq!(p, d.join("node_modules/foo/bar.js"));
+    let p = node_resolve("foo/dir/cat.js", &d.join("main.js")).unwrap();
+    assert_eq!(p, d.join("node_modules/foo/dir/cat.js"));
   }
 }
