@@ -151,7 +151,14 @@ fn node_resolve(specifier: &str, referrer: &Path) -> anyhow::Result<PathBuf> {
     if package_json_path.exists() {
       //println!("path_json_path {:?}", package_json_path);
       let package_config = get_package_config(package_json_path)?;
-      //println!("package_config {:?}", package_config);
+
+      println!("package_config {:#?}", package_config);
+
+      if let Some(exports) = package_config.exports {
+        todo!()
+      }
+
+      // old school
       if let Some(rest) = maybe_rest {
         let d = module_dir.join(rest);
         if let Ok(m) = d.metadata() {
@@ -256,5 +263,15 @@ mod tests {
     assert_eq!(p, d.join("sibling.js"));
     let p = node_resolve("./sibling", main_js).unwrap();
     assert_eq!(p, d.join("sibling.js"));
+  }
+
+  #[test]
+  fn cjs_imports_exports() {
+    let d = testdir("cjs_imports_exports");
+    let main_js = &d.join("main.js");
+    check_node(main_js);
+
+    let p = node_resolve("imports_exports", main_js).unwrap();
+    assert_eq!(p, d.join("node_modules/imports_exports/require_export.cjs"));
   }
 }
