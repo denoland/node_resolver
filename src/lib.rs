@@ -315,8 +315,15 @@ mod tests {
 
     let p = node_resolve("exports", main_js, &["import"]).unwrap();
     assert_eq!(p, d.join("node_modules/exports/main-module.js"));
+  }
 
-    let p = node_resolve("exports2", main_js, &["require"]).unwrap();
-    assert_eq!(p, d.join("node_modules/exports2/main-require.cjs"));
+  #[test]
+  fn cjs_exports_dot() {
+    let d = testdir("cjs_exports_dot");
+    let main_js = &d.join("main.js");
+    check_node(main_js);
+
+    let p = node_resolve("exports", main_js, &[]).unwrap();
+    assert_eq!(p, d.join("node_modules/exports/main-require.cjs"));
   }
 }
