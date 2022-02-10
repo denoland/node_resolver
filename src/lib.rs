@@ -156,7 +156,7 @@ fn node_resolve(
       //println!("path_json_path {:?}", package_json_path);
       let package_config = get_package_config(package_json_path)?;
 
-      // println!("package_config {:#?}", package_config);
+      println!("package_config {:#?}", package_config.exports);
 
       match package_config.exports {
         Some(Value::String(s)) => {
@@ -170,7 +170,14 @@ fn node_resolve(
               }
             }
           }
-          todo!();
+
+          if let Some(x) = map.get(".") {
+            if let Value::String(s) = x {
+              return Ok(module_dir.join(s));
+            }
+          }
+
+          todo!()
         }
         Some(_) => {
           todo!();
@@ -308,5 +315,8 @@ mod tests {
 
     let p = node_resolve("exports", main_js, &["import"]).unwrap();
     assert_eq!(p, d.join("node_modules/exports/main-module.js"));
+
+    let p = node_resolve("exports2", main_js, &["require"]).unwrap();
+    assert_eq!(p, d.join("node_modules/exports2/main-require.cjs"));
   }
 }
