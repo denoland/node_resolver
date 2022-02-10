@@ -219,7 +219,7 @@ mod tests {
 
   fn testdir(name: &str) -> PathBuf {
     let c = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    c.join("src/testdata/").join(name)
+    c.join("src/testdata").join(name)
   }
 
   fn check_node(main: &Path) {
@@ -325,5 +325,21 @@ mod tests {
 
     let p = node_resolve("exports", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/exports/main-require.cjs"));
+  }
+
+  #[test]
+  fn cjs_exports_multi() {
+    let d = testdir("cjs_exports_multi");
+    let main_js = &d.join("main.js");
+    check_node(main_js);
+
+    let p = node_resolve("exports", main_js, &[]).unwrap();
+    assert_eq!(p, d.join("node_modules/exports/main-require.cjs"));
+
+    let p = node_resolve("exports/foo", main_js, &[]).unwrap();
+    assert_eq!(p, d.join("node_modules/exports/foo.js"));
+
+    let p = node_resolve("exports/bar/baz", main_js, &[]).unwrap();
+    assert_eq!(p, d.join("node_modules/exports/bar/baz.js"));
   }
 }
