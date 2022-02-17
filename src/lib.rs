@@ -1,3 +1,6 @@
+mod errors;
+mod exports_resolve;
+
 use serde_json::Map;
 use serde_json::Value;
 use std::path::Path;
@@ -171,9 +174,12 @@ fn node_resolve(
             }
           }
 
-          if let Some(x) = map.get(".") {
+          println!("maybe_rest {:?}", maybe_rest);
+          if let Some(x) = path_match(maybe_rest, map) {
             if let Value::String(s) = x {
               return Ok(module_dir.join(s));
+            } else {
+              todo!()
             }
           }
 
@@ -207,6 +213,16 @@ fn node_resolve(
   }
 
   Err(not_found())
+}
+
+fn path_match(
+  maybe_rest: Option<&str>,
+  map: serde_json::Map<String, Value>,
+) -> Option<Value> {
+  for (k, v) in map.iter() {
+    println!("k {}", k);
+  }
+  todo!()
 }
 
 fn not_found() -> anyhow::Error {
