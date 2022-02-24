@@ -13,13 +13,13 @@ pub fn node_resolve(
   referrer: &Path,
   conditions: &[&str],
 ) -> anyhow::Result<PathBuf> {
-  if specifier.starts_with("/") {
+  if specifier.starts_with('/') {
     todo!();
   }
 
   if specifier.starts_with("./") || specifier.starts_with("../") {
     if let Some(parent) = referrer.parent() {
-      return Ok(file_extension_probe(parent.join(specifier))?);
+      return file_extension_probe(parent.join(specifier));
     } else {
       todo!();
     }
@@ -27,7 +27,7 @@ pub fn node_resolve(
 
   // We've got a bare specifier or maybe bare_specifier/blah.js"
 
-  let (package_name, package_subpath, is_scoped) =
+  let (package_name, package_subpath, _is_scoped) =
     parse_specifier(specifier).unwrap();
 
   for ancestor in referrer.ancestors() {
@@ -61,12 +61,10 @@ pub fn node_resolve(
           }
         }
         return file_extension_probe(d);
+      } else if let Some(main) = package_json.main {
+        return Ok(module_dir.join(main));
       } else {
-        if let Some(main) = package_json.main {
-          return Ok(module_dir.join(main));
-        } else {
-          return Ok(module_dir.join("index.js"));
-        }
+        return Ok(module_dir.join("index.js"));
       }
     }
   }
@@ -155,13 +153,13 @@ fn exports_resolve(
 
 fn file_extension_probe(mut p: PathBuf) -> anyhow::Result<PathBuf> {
   if p.exists() {
-    return Ok(p);
+    Ok(p)
   } else {
     p.set_extension("js");
     if p.exists() {
-      return Ok(p);
+      Ok(p)
     } else {
-      return Err(not_found());
+      Err(not_found())
     }
   }
 }
@@ -201,7 +199,7 @@ mod tests {
     let d = testdir("cjs_main");
     let main_js = &d.join("main.js");
     check_node(main_js);
-    let p = node_resolve("foo", &main_js, &[]).unwrap();
+    let p = node_resolve("foo", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/foo/main.js"));
   }
 
