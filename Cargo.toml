@@ -1,10 +1,10 @@
 [package]
-name = "node_resolve"
+name = "node_resolver"
 version = "0.1.0"
 authors = ["The Deno Authors"]
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/denoland/node_resolve"
+repository = "https://github.com/denoland/node_resolver"
 description = "The Node.js module resolution algorithm"
 
 [dependencies]
