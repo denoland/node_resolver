@@ -27,8 +27,7 @@ pub fn node_resolve(
 
   // We've got a bare specifier or maybe bare_specifier/blah.js"
 
-  let (package_name, package_subpath, _is_scoped) =
-    parse_specifier(specifier).unwrap();
+  let (package_name, package_subpath) = parse_specifier(specifier).unwrap();
 
   for ancestor in referrer.ancestors() {
     // println!("ancestor {:?}", ancestor);
