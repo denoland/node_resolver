@@ -8,7 +8,7 @@ use serde_json::Value;
 use std::path::Path;
 use std::path::PathBuf;
 
-pub fn node_resolve(
+pub fn resolve(
   specifier: &str,
   referrer: &Path,
   conditions: &[&str],
@@ -189,7 +189,7 @@ mod tests {
     let d = testdir("cjs_no_main");
     let main_js = &d.join("main.js");
     check_node(main_js);
-    let p = node_resolve("foo", main_js, &[]).unwrap();
+    let p = resolve("foo", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/foo/index.js"));
   }
 
@@ -198,7 +198,7 @@ mod tests {
     let d = testdir("cjs_main");
     let main_js = &d.join("main.js");
     check_node(main_js);
-    let p = node_resolve("foo", main_js, &[]).unwrap();
+    let p = resolve("foo", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/foo/main.js"));
   }
 
@@ -208,22 +208,22 @@ mod tests {
     let main_js = &d.join("main.js");
     check_node(main_js);
 
-    let p = node_resolve("foo/bar.js", main_js, &[]).unwrap();
+    let p = resolve("foo/bar.js", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/foo/bar.js"));
 
-    let p = node_resolve("foo/bar", main_js, &[]).unwrap();
+    let p = resolve("foo/bar", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/foo/bar.js"));
 
-    let p = node_resolve("foo/dir/cat.js", main_js, &[]).unwrap();
+    let p = resolve("foo/dir/cat.js", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/foo/dir/cat.js"));
 
-    let p = node_resolve("foo/dir/cat", main_js, &[]).unwrap();
+    let p = resolve("foo/dir/cat", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/foo/dir/cat.js"));
 
-    let p = node_resolve("foo/dir", main_js, &[]).unwrap();
+    let p = resolve("foo/dir", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/foo/dir/index.js"));
 
-    let p = node_resolve("foo/dir/", main_js, &[]).unwrap();
+    let p = resolve("foo/dir/", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/foo/dir/index.js"));
   }
 
@@ -232,7 +232,7 @@ mod tests {
     let d = testdir("cjs_main");
     let main_js = &d.join("main.js");
     check_node(main_js);
-    let e = node_resolve("bar", main_js, &[]).unwrap_err();
+    let e = resolve("bar", main_js, &[]).unwrap_err();
     let ioerr = e.downcast_ref::<std::io::Error>().unwrap();
     assert_eq!(ioerr.kind(), std::io::ErrorKind::NotFound);
   }
@@ -242,9 +242,9 @@ mod tests {
     let d = testdir("cjs_main");
     let main_js = &d.join("main.js");
     check_node(main_js);
-    let p = node_resolve("./sibling.js", main_js, &[]).unwrap();
+    let p = resolve("./sibling.js", main_js, &[]).unwrap();
     assert_eq!(p, d.join("sibling.js"));
-    let p = node_resolve("./sibling", main_js, &[]).unwrap();
+    let p = resolve("./sibling", main_js, &[]).unwrap();
     assert_eq!(p, d.join("sibling.js"));
   }
 
@@ -254,7 +254,7 @@ mod tests {
     let main_js = &d.join("main.js");
     check_node(main_js);
 
-    let p = node_resolve("exports_string", main_js, &[]).unwrap();
+    let p = resolve("exports_string", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/exports_string/foo.js"));
   }
 
@@ -264,10 +264,10 @@ mod tests {
     let main_js = &d.join("main.js");
     check_node(main_js);
 
-    let p = node_resolve("exports", main_js, &["require"]).unwrap();
+    let p = resolve("exports", main_js, &["require"]).unwrap();
     assert_eq!(p, d.join("node_modules/exports/main-require.cjs"));
 
-    let p = node_resolve("exports", main_js, &["import"]).unwrap();
+    let p = resolve("exports", main_js, &["import"]).unwrap();
     assert_eq!(p, d.join("node_modules/exports/main-module.js"));
   }
 
@@ -277,7 +277,7 @@ mod tests {
     let main_js = &d.join("main.js");
     check_node(main_js);
 
-    let p = node_resolve("exports", main_js, &[]).unwrap();
+    let p = resolve("exports", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/exports/main-require.cjs"));
   }
 
@@ -287,13 +287,13 @@ mod tests {
     let main_js = &d.join("main.js");
     check_node(main_js);
 
-    let p = node_resolve("exports", main_js, &[]).unwrap();
+    let p = resolve("exports", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/exports/main-require.cjs"));
 
-    let p = node_resolve("exports/foo", main_js, &[]).unwrap();
+    let p = resolve("exports/foo", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/exports/foo.js"));
 
-    let p = node_resolve("exports/bar/baz", main_js, &[]).unwrap();
+    let p = resolve("exports/bar/baz", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/exports/bar/baz.js"));
   }
 
@@ -303,7 +303,7 @@ mod tests {
     let main_js = &d.join("main.js");
     check_node(main_js);
 
-    let p = node_resolve("@ne-test-org/hello-world", main_js, &[]).unwrap();
+    let p = resolve("@ne-test-org/hello-world", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/@ne-test-org/hello-world/index.js"));
   }
 }
