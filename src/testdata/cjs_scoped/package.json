@@ -1,0 +1,8 @@
+{
+  "name": "cjs_scoped",
+  "version": "1.0.0",
+  "main": "main.js",
+  "dependencies": {
+    "@ne-test-org/hello-world": "^1.0.0"
+  }
+}

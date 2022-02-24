@@ -297,4 +297,14 @@ mod tests {
     let p = node_resolve("exports/bar/baz", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/exports/bar/baz.js"));
   }
+
+  #[test]
+  fn cjs_scoped() {
+    let d = testdir("cjs_scoped");
+    let main_js = &d.join("main.js");
+    check_node(main_js);
+
+    let p = node_resolve("@ne-test-org/hello-world", main_js, &[]).unwrap();
+    assert_eq!(p, d.join("node_modules/@ne-test-org/hello-world/index.js"));
+  }
 }
