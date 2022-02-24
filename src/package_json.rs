@@ -4,7 +4,6 @@ use std::path::PathBuf;
 
 #[derive(Clone, Debug)]
 pub struct PackageJson {
-  pub exists: bool,
   pub exports_map: Option<Map<String, Value>>,
   pub imports: Option<Map<String, Value>>,
   pub main: Option<String>,
@@ -67,7 +66,6 @@ impl PackageJson {
 
     let package_json = PackageJson {
       path,
-      exists: true,
       main,
       name,
       typ,
