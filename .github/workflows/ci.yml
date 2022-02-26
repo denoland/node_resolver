@@ -4,6 +4,10 @@ on: [push, pull_request]
 
 jobs:
   rust:
+    name: node-resolved-${{ matrix.os }}
+    if: |
+      github.event_name == 'push' ||
+      !startsWith(github.event.pull_request.head.label, 'denoland:')
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
