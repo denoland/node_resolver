@@ -4,7 +4,10 @@ on: [push, pull_request]
 
 jobs:
   rust:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macOS-latest, ubuntu-20.04, windows-2019]
 
     steps:
       - name: Clone repository
