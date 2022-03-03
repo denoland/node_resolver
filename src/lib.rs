@@ -1,7 +1,7 @@
 mod package_json;
 mod parse_specifier;
 
-use package_json::PackageJson;
+pub use package_json::PackageJson;
 use parse_specifier::parse_specifier;
 use serde_json::Map;
 use serde_json::Value;
@@ -163,8 +163,13 @@ fn file_extension_probe(mut p: PathBuf) -> anyhow::Result<PathBuf> {
   }
 }
 
+// TODO(bartlomieju): match error returned in Node
 fn not_found() -> anyhow::Error {
-  std::io::Error::new(std::io::ErrorKind::NotFound, "Not found").into()
+  std::io::Error::new(
+    std::io::ErrorKind::NotFound,
+    "[ERR_MODULE_NOT_FOUND] Cannot find module",
+  )
+  .into()
 }
 
 #[cfg(test)]
