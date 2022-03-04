@@ -19,7 +19,7 @@ pub fn resolve(
 
   if specifier.starts_with("./") || specifier.starts_with("../") {
     if let Some(parent) = referrer.parent() {
-      return file_extension_probe(parent.join(specifier));
+      return file_extension_probe(parent.join(specifier), referrer);
     } else {
       todo!();
     }
@@ -59,7 +59,7 @@ pub fn resolve(
             return Ok(d.join("index.js"));
           }
         }
-        return file_extension_probe(d);
+        return file_extension_probe(d, referrer);
       } else if let Some(main) = package_json.main {
         return Ok(module_dir.join(main));
       } else {
@@ -68,7 +68,7 @@ pub fn resolve(
     }
   }
 
-  Err(not_found())
+  Err(not_found(specifier, referrer))
 }
 
 // TODO needs some unit tests.
@@ -150,7 +150,10 @@ fn exports_resolve(
   None
 }
 
-fn file_extension_probe(mut p: PathBuf) -> anyhow::Result<PathBuf> {
+fn file_extension_probe(
+  mut p: PathBuf,
+  referrer: &Path,
+) -> anyhow::Result<PathBuf> {
   if p.exists() {
     Ok(p)
   } else {
@@ -158,18 +161,18 @@ fn file_extension_probe(mut p: PathBuf) -> anyhow::Result<PathBuf> {
     if p.exists() {
       Ok(p)
     } else {
-      Err(not_found())
+      Err(not_found(&p.to_string_lossy(), referrer))
     }
   }
 }
 
-// TODO(bartlomieju): match error returned in Node
-fn not_found() -> anyhow::Error {
-  std::io::Error::new(
-    std::io::ErrorKind::NotFound,
-    "[ERR_MODULE_NOT_FOUND] Cannot find module",
-  )
-  .into()
+fn not_found(path: &str, referrer: &Path) -> anyhow::Error {
+  let msg = format!(
+    "[ERR_MODULE_NOT_FOUND] Cannot find \"{}\" imported from \"{}\"",
+    path,
+    referrer.to_string_lossy()
+  );
+  std::io::Error::new(std::io::ErrorKind::NotFound, msg).into()
 }
 
 #[cfg(test)]
