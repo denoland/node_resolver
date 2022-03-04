@@ -30,16 +30,12 @@ pub fn resolve(
   let (package_name, package_subpath) = parse_specifier(specifier).unwrap();
 
   for ancestor in referrer.ancestors() {
-    // println!("ancestor {:?}", ancestor);
     let module_dir = ancestor.join("node_modules").join(&package_name);
     let package_json_path = module_dir.join("package.json");
     if package_json_path.exists() {
       let package_json = PackageJson::load(package_json_path)?;
 
       if let Some(map) = package_json.exports_map {
-        // println!("package_subpath {}", package_subpath);
-        // println!("package_json exports_map {:#?}", map);
-
         if let Some((key, subpath)) = exports_resolve(&map, &package_subpath) {
           let value = map.get(&key).unwrap();
           let s = conditions_resolve(value, conditions);
@@ -77,8 +73,6 @@ fn resolve_package_target_string(
   subpath: Option<String>,
 ) -> String {
   if let Some(subpath) = subpath {
-    // println!("target {}", target);
-    // println!("subpath {:?}", subpath);
     target.replace('*', &subpath)
   } else {
     target.to_string()
@@ -117,15 +111,11 @@ fn exports_resolve(
   for key in map.keys() {
     if let Some(pattern_index) = key.find('*') {
       let key_sub = &key[0..pattern_index];
-      //println!("subpath {}", subpath);
-      //println!("key_sub {}", key_sub);
-
       if subpath.starts_with(key_sub) {
         if subpath.ends_with('/') {
           todo!()
         }
         let pattern_trailer = &key[pattern_index + 1..];
-        //println!("pattern_trailer {}", pattern_trailer);
 
         if subpath.len() > key.len()
           && subpath.ends_with(pattern_trailer)
@@ -142,8 +132,6 @@ fn exports_resolve(
   }
 
   if let Some((key, subpath_)) = best_match {
-    // println!("key {}", key);
-    //println!("subpath_ {}", subpath_);
     return Some((key.to_string(), Some(subpath_)));
   }
 
