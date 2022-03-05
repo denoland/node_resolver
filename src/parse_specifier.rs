@@ -1,3 +1,5 @@
+// Copyright 2022 the Deno authors. All rights reserved. MIT license.
+
 pub fn parse_specifier(specifier: &str) -> Option<(String, String)> {
   let mut separator_index = specifier.find('/');
   let mut valid_package_name = true;

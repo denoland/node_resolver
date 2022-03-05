@@ -1,3 +1,6 @@
+// Copyright 2022 the Deno authors. All rights reserved. MIT license.
+
+mod errors;
 mod package_json;
 mod parse_specifier;
 

@@ -1,3 +1,5 @@
+// Copyright 2022 the Deno authors. All rights reserved. MIT license.
+
 use serde_json::Map;
 use serde_json::Value;
 use std::path::PathBuf;
