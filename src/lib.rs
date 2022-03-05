@@ -1,6 +1,7 @@
 mod package_json;
 mod parse_specifier;
 
+use anyhow::bail;
 pub use package_json::PackageJson;
 use parse_specifier::parse_specifier;
 use serde_json::Map;
@@ -23,6 +24,10 @@ pub fn resolve(
     } else {
       todo!();
     }
+  }
+
+  if specifier.starts_with('#') {
+    return package_imports_resolve(specifier, referrer, conditions);
   }
 
   // We've got a bare specifier or maybe bare_specifier/blah.js"
@@ -80,6 +85,7 @@ fn resolve_package_target_string(
 }
 
 fn conditions_resolve(value: &Value, conditions: &[&str]) -> String {
+  eprintln!("value {:#?} conds {:?}", value, conditions);
   match value {
     Value::String(s) => s.to_string(),
     Value::Object(map) => {
@@ -161,6 +167,132 @@ fn not_found(path: &str, referrer: &Path) -> anyhow::Error {
     referrer.to_string_lossy()
   );
   std::io::Error::new(std::io::ErrorKind::NotFound, msg).into()
+}
+
+fn package_imports_resolve(
+  name: &str,
+  referrer: &Path,
+  conditions: &[&str],
+) -> anyhow::Result<PathBuf> {
+  if name == "#" || name.starts_with("#/") || name.ends_with('/') {
+    let reason = "is not a valid internal imports specifier name";
+    bail!("Invalid module specifier {} {}", name, reason);
+    // return Err(errors::err_invalid_module_specifier(
+    //   name,
+    //   reason,
+    //   Some(to_file_path_string(base)),
+    // ));
+  }
+
+  let mut package_json_url = None;
+
+  let package_config = get_package_scope_config(base)?;
+  if package_config.exists {
+    package_json_url =
+      Some(Url::from_file_path(package_config.pjsonpath).unwrap());
+    if let Some(imports) = &package_config.imports {
+      if imports.contains_key(name) && !name.contains('*') {
+        let maybe_resolved = resolve_package_target(
+          package_json_url.clone().unwrap(),
+          imports.get(name).unwrap().to_owned(),
+          "".to_string(),
+          name.to_string(),
+          referrer,
+          false,
+          true,
+          conditions,
+        )?;
+        if let Some(resolved) = maybe_resolved {
+          return Ok(resolved);
+        }
+      } else {
+        let mut best_match = "";
+        let mut best_match_subpath = None;
+        for key in imports.keys() {
+          let pattern_index = key.find('*');
+          if let Some(pattern_index) = pattern_index {
+            let key_sub = &key[0..=pattern_index];
+            if name.starts_with(key_sub) {
+              let pattern_trailer = &key[pattern_index + 1..];
+              if name.len() > key.len()
+                && name.ends_with(&pattern_trailer)
+                && pattern_key_compare(best_match, key) == 1
+                && key.rfind('*') == Some(pattern_index)
+              {
+                best_match = key;
+                best_match_subpath = Some(
+                  name[pattern_index..=(name.len() - pattern_trailer.len())]
+                    .to_string(),
+                );
+              }
+            }
+          }
+        }
+
+        if !best_match.is_empty() {
+          let target = imports.get(best_match).unwrap().to_owned();
+          let maybe_resolved = resolve_package_target(
+            package_json_url.clone().unwrap(),
+            target,
+            best_match_subpath.unwrap(),
+            best_match.to_string(),
+            referrer,
+            true,
+            true,
+            conditions,
+          )?;
+          if let Some(resolved) = maybe_resolved {
+            return Ok(resolved);
+          }
+        }
+      }
+    }
+  }
+
+  bail!("Import not defined");
+  // Err(throw_import_not_defined(name, package_json_url, base))
+}
+
+fn pattern_key_compare(a: &str, b: &str) -> i32 {
+  let a_pattern_index = a.find('*');
+  let b_pattern_index = b.find('*');
+
+  let base_len_a = if let Some(index) = a_pattern_index {
+    index + 1
+  } else {
+    a.len()
+  };
+  let base_len_b = if let Some(index) = b_pattern_index {
+    index + 1
+  } else {
+    b.len()
+  };
+
+  if base_len_a > base_len_b {
+    return -1;
+  }
+
+  if base_len_b > base_len_a {
+    return 1;
+  }
+
+  if a_pattern_index.is_none() {
+    return 1;
+  }
+
+  if b_pattern_index.is_none() {
+    return -1;
+  }
+
+  if a.len() > b.len() {
+    return -1;
+  }
+
+  if b.len() > a.len() {
+    return 1;
+  }
+
+  0
 }
 
 #[cfg(test)]
@@ -306,5 +438,24 @@ mod tests {
 
     let p = resolve("@ne-test-org/hello-world", main_js, &[]).unwrap();
     assert_eq!(p, d.join("node_modules/@ne-test-org/hello-world/index.js"));
+  }
+
+  #[test]
+  fn conditional_exports() {
+    // check that `exports` mapping works correctly
+    let d = testdir("conditions");
+    let main_js = &d.join("main.js");
+    check_node(main_js);
+
+    let actual = resolve("imports_exports", main_js, &["node", "import"]).unwrap();
+    let expected = d.join("node_modules/imports_exports/import_export.js");
+    assert_eq!(actual, expected);
+
+    // check that `imports` mapping works correctly
+    let d = testdir("conditions/node_modules/imports_exports");
+    let main_js = &d.join("import_export.js");
+    let actual = resolve("#dep", main_js, &[]).unwrap();
+    let expected = d.join("import_polyfill.js");
+    assert_eq!(actual, expected);
   }
 }
