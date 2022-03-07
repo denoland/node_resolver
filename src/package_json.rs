@@ -1,9 +1,12 @@
+use path_clean::PathClean;
 use serde_json::Map;
 use serde_json::Value;
+use std::path::Path;
 use std::path::PathBuf;
 
 #[derive(Clone, Debug)]
 pub struct PackageJson {
+  pub exists: bool,
   pub exports_map: Option<Map<String, Value>>,
   pub imports: Option<Map<String, Value>>,
   pub main: Option<String>,
@@ -65,6 +68,7 @@ impl PackageJson {
     };
 
     let package_json = PackageJson {
+      exists: true,
       path,
       main,
       name,
@@ -101,4 +105,45 @@ fn is_conditional_exports_main_sugar(exports: &Value) -> bool {
   }
 
   is_conditional_sugar
+}
+
+pub fn get_package_scope_config(
+  referrer: &Path,
+) -> anyhow::Result<PackageJson> {
+  let mut package_json_path = referrer.join("./package.json").clean();
+
+  loop {
+    if package_json_path.ends_with("node_modules/package.json") {
+      break;
+    }
+
+    let result = PackageJson::load(package_json_path.to_path_buf());
+    // TODO(bartlomieju): ignores all errors, instead of checking for "No such file or directory"
+    if let Ok(package_config) = result {
+      return Ok(package_config);
+    }
+
+    let last_package_json_path = package_json_path.clone();
+    package_json_path = package_json_path.join("../package.json").clean();
+    // TODO(bartlomieju): I'm not sure this will work properly
+    // Terminates at root where ../package.json equals ../../package.json
+    // (can't just check "/package.json" for Windows support)
+    if package_json_path == last_package_json_path {
+      break;
+    }
+  }
+
+  let package_config = PackageJson {
+    exists: false,
+    typ: "none".to_string(),
+    exports_map: None,
+    imports: None,
+    main: None,
+    name: None,
+    path: PathBuf::new(),
+  };
+
+  // TODO(bartlomieju):
+  // package_json_cache.set(package_json_path, package_config.clone());
+  Ok(package_config)
 }
