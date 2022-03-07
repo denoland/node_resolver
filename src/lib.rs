@@ -5,6 +5,8 @@ use anyhow::bail;
 use package_json::get_package_scope_config;
 pub use package_json::PackageJson;
 use parse_specifier::parse_specifier;
+use path_clean::PathClean;
+use regex::Regex;
 use serde_json::Map;
 use serde_json::Value;
 use std::path::Path;
@@ -193,7 +195,7 @@ fn package_imports_resolve(
     if let Some(imports) = &package_config.imports {
       if imports.contains_key(name) && !name.contains('*') {
         let maybe_resolved = resolve_package_target(
-          package_json_path.clone().unwrap(),
+          package_json_path.as_ref().unwrap(),
           imports.get(name).unwrap().to_owned(),
           "".to_string(),
           name.to_string(),
@@ -232,7 +234,7 @@ fn package_imports_resolve(
         if !best_match.is_empty() {
           let target = imports.get(best_match).unwrap().to_owned();
           let maybe_resolved = resolve_package_target(
-            package_json_path.clone().unwrap(),
+            package_json_path.as_ref().unwrap(),
             target,
             best_match_subpath.unwrap(),
             best_match.to_string(),
@@ -265,7 +267,7 @@ fn resolve_package_target(
   conditions: &[&str],
 ) -> anyhow::Result<Option<PathBuf>> {
   if let Some(target) = target.as_str() {
-    return Ok(Some(resolve_package_target_string(
+    return Ok(Some(resolve_package_target_string_old(
       target.to_string(),
       subpath,
       package_subpath,
@@ -351,6 +353,113 @@ fn resolve_package_target(
   //   internal,
   //   base,
   // ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_package_target_string_old(
+  target: String,
+  subpath: String,
+  match_: String,
+  package_json_path: &Path,
+  base: &Path,
+  pattern: bool,
+  internal: bool,
+  conditions: &[&str],
+) -> anyhow::Result<PathBuf> {
+  if !subpath.is_empty() && !pattern && !target.ends_with('/') {
+    bail!("Invalid package target");
+    // return Err(throw_invalid_package_target(
+    //   match_,
+    //   target,
+    //   package_json_path,
+    //   internal,
+    //   base,
+    // ));
+  }
+
+  let invalid_segment_re =
+    Regex::new(r"(^|\|/)(..?|node_modules)(\|/|$)").expect("bad regex");
+  let pattern_re = Regex::new(r"\*").expect("bad regex");
+
+  if !target.starts_with("./") {
+    if internal && !target.starts_with("../") && !target.starts_with('/') {
+      let is_url = Url::parse(&target).is_ok();
+      if !is_url {
+        let export_target = if pattern {
+          pattern_re
+            .replace(&target, |_caps: &regex::Captures| subpath.clone())
+            .to_string()
+        } else {
+          format!("{}{}", target, subpath)
+        };
+        return package_resolve(&export_target, package_json_path, conditions);
+      }
+    }
+    bail!("Invalid package target");
+    // return Err(throw_invalid_package_target(
+    //   match_,
+    //   target,
+    //   package_json_path,
+    //   internal,
+    //   base,
+    // ));
+  }
+
+  if invalid_segment_re.is_match(&target[2..]) {
+    bail!("Invalid package target");
+    // return Err(throw_invalid_package_target(
+    //   match_,
+    //   target,
+    //   package_json_path,
+    //   internal,
+    //   base,
+    // ));
+  }
+
+  let resolved_path = package_json_path.join(&target).clean();
+  let package_path = package_json_path.join(".").clean();
+
+  if !resolved_path.starts_with(package_path) {
+    bail!("Invalid package target");
+    // return Err(throw_invalid_package_target(
+    //   match_,
+    //   target,
+    //   package_json_path,
+    //   internal,
+    //   base,
+    // ));
+  }
+
+  if subpath.is_empty() {
+    return Ok(resolved_path);
+  }
+
+  if invalid_segment_re.is_match(&subpath) {
+    let request = if pattern {
+      match_.replace('*', &subpath)
+    } else {
+      format!("{}{}", match_, subpath)
+    };
+    bail!("Invalid subpath");
+    // return Err(throw_invalid_subpath(
+    //   request,
+    //   package_json_path,
+    //   internal,
+    //   base,
+    // ));
+  }
+
+  if pattern {
+    let replaced = pattern_re
+      .replace(
+        &resolved_path.to_string_lossy(),
+        |_caps: &regex::Captures| subpath.clone(),
+      )
+      .to_string();
+    return Ok(PathBuf::from(replaced));
+  }
+
+  Ok(resolved_path.join(&subpath).clean())
 }
 
 fn pattern_key_compare(a: &str, b: &str) -> i32 {
