@@ -2,6 +2,7 @@ mod package_json;
 mod parse_specifier;
 
 use anyhow::bail;
+use package_json::get_package_scope_config;
 pub use package_json::PackageJson;
 use parse_specifier::parse_specifier;
 use serde_json::Map;
@@ -184,16 +185,15 @@ fn package_imports_resolve(
     // ));
   }
 
-  let mut package_json_url = None;
+  let mut package_json_path = None;
 
-  let package_config = get_package_scope_config(base)?;
+  let package_config = get_package_scope_config(referrer)?;
   if package_config.exists {
-    package_json_url =
-      Some(Url::from_file_path(package_config.pjsonpath).unwrap());
+    package_json_path = Some(package_config.path.clone());
     if let Some(imports) = &package_config.imports {
       if imports.contains_key(name) && !name.contains('*') {
         let maybe_resolved = resolve_package_target(
-          package_json_url.clone().unwrap(),
+          package_json_path.clone().unwrap(),
           imports.get(name).unwrap().to_owned(),
           "".to_string(),
           name.to_string(),
@@ -232,7 +232,7 @@ fn package_imports_resolve(
         if !best_match.is_empty() {
           let target = imports.get(best_match).unwrap().to_owned();
           let maybe_resolved = resolve_package_target(
-            package_json_url.clone().unwrap(),
+            package_json_path.clone().unwrap(),
             target,
             best_match_subpath.unwrap(),
             best_match.to_string(),
@@ -251,6 +251,106 @@ fn package_imports_resolve(
 
   bail!("Import not defined");
   // Err(throw_import_not_defined(name, package_json_url, base))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_package_target(
+  package_json_path: &Path,
+  target: Value,
+  subpath: String,
+  package_subpath: String,
+  base: &Path,
+  pattern: bool,
+  internal: bool,
+  conditions: &[&str],
+) -> anyhow::Result<Option<PathBuf>> {
+  if let Some(target) = target.as_str() {
+    return Ok(Some(resolve_package_target_string(
+      target.to_string(),
+      subpath,
+      package_subpath,
+      package_json_path,
+      base,
+      pattern,
+      internal,
+      conditions,
+    )?));
+  } else if let Some(target_arr) = target.as_array() {
+    if target_arr.is_empty() {
+      return Ok(None);
+    }
+
+    let mut last_error = None;
+    for target_item in target_arr {
+      let resolved_result = resolve_package_target(
+        package_json_path.clone(),
+        target_item.to_owned(),
+        subpath.clone(),
+        package_subpath.clone(),
+        base,
+        pattern,
+        internal,
+        conditions,
+      );
+
+      if let Err(e) = resolved_result {
+        let err_string = e.to_string();
+        last_error = Some(e);
+        if err_string.starts_with("[ERR_INVALID_PACKAGE_TARGET]") {
+          continue;
+        }
+        return Err(last_error.unwrap());
+      }
+      let resolved = resolved_result.unwrap();
+      if resolved.is_none() {
+        last_error = None;
+        continue;
+      }
+      return Ok(resolved);
+    }
+    if last_error.is_none() {
+      return Ok(None);
+    }
+    return Err(last_error.unwrap());
+  } else if let Some(target_obj) = target.as_object() {
+    for key in target_obj.keys() {
+      // TODO(bartlomieju): verify that keys are not numeric
+      // return Err(errors::err_invalid_package_config(
+      //   to_file_path_string(package_json_path),
+      //   Some(base.as_str().to_string()),
+      //   Some("\"exports\" cannot contain numeric property keys.".to_string()),
+      // ));
+
+      if key == "default" || conditions.contains(&key.as_str()) {
+        let condition_target = target_obj.get(key).unwrap().to_owned();
+        let resolved = resolve_package_target(
+          package_json_path.clone(),
+          condition_target,
+          subpath.clone(),
+          package_subpath.clone(),
+          base,
+          pattern,
+          internal,
+          conditions,
+        )?;
+        if resolved.is_none() {
+          continue;
+        }
+        return Ok(resolved);
+      }
+    }
+  } else if target.is_null() {
+    return Ok(None);
+  }
+
+  bail!("Invalid package target");
+  // Err(throw_invalid_package_target(
+  //   package_subpath,
+  //   target.to_string(),
+  //   &package_json_path,
+  //   internal,
+  //   base,
+  // ))
 }
 
 fn pattern_key_compare(a: &str, b: &str) -> i32 {
@@ -447,7 +547,8 @@ mod tests {
     let main_js = &d.join("main.js");
     check_node(main_js);
 
-    let actual = resolve("imports_exports", main_js, &["node", "import"]).unwrap();
+    let actual =
+      resolve("imports_exports", main_js, &["node", "import"]).unwrap();
     let expected = d.join("node_modules/imports_exports/import_export.js");
     assert_eq!(actual, expected);
 
